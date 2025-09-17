@@ -11,21 +11,25 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # Checkout repo
       - name: Checkout source
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: Install devkitPro pacman (devkitARM + tools)
+      # Install devkitPro
+      - name: Setup devkitPro
         run: |
           sudo apt update
           sudo apt install -y devkitpro-pacman
           sudo dkp-pacman -Sy --noconfirm devkitARM general-tools 3ds-dev
 
-      - name: Build project
+      # Build project
+      - name: Build 3DS project
         run: |
           make
 
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+      # Upload artifacts (.3dsx, .cia, etc.)
+      - name: Upload build outputs
+        uses: actions/upload-artifact@v4
         with:
           name: 3ds-build
           path: |
