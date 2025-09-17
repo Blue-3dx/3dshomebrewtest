@@ -101,5 +101,4 @@ jobs:
             romfs/*
 
       - name: Notify summary
-        if: success()
-        run: echo "Build finished: artifacts uploaded (look for .3dsx/.cia/.elf in the artifact)."
+
