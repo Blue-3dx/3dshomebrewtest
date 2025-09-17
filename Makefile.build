@@ -1,0 +1,11 @@
+TITLE := wavedemo
+BUILD := 3dsx
+SOURCES := $(wildcard src/*.c)
+
+# default include for devkitPro 3DS rules; environment must have DEVKITPRO set
+ifeq ($(origin DEVKITPRO), undefined)
+$(error DEVKITPRO is undefined. You need devkitPro installed to build.)
+endif
+
+include $(DEVKITPRO)/3ds_rules
+
