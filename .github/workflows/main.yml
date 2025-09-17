@@ -1,38 +1,60 @@
-name: 3DS Build
+name: Build 3DS
 
+# trigger on pushes to main/master and manual runs
 on:
   push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.ref }}-3ds
+  cancel-in-progress: true
 
 jobs:
-  build:
+  build-3DS:
+    timeout-minutes: 20
     runs-on: ubuntu-latest
+    container:
+      image: devkitpro/devkitarm:latest
 
     steps:
-      # Checkout repo
       - name: Checkout source
         uses: actions/checkout@v4
 
-      # Install devkitPro
-      - name: Setup devkitPro
+      - name: Print environment (debug)
         run: |
-          sudo apt update
-          sudo apt install -y devkitpro-pacman
-          sudo dkp-pacman -Sy --noconfirm devkitARM general-tools 3ds-dev
+          uname -a
+          echo "DEVKITPRO: $DEVKITPRO"
+          ls -la
 
-      # Build project
-      - name: Build 3DS project
+      - name: Build 3DS (try make 3ds, fallback to make)
+        id: compile
         run: |
-          make
+          set -e
+          if make 3ds; then
+            echo "Built with 'make 3ds'"
+          else
+            echo "'make 3ds' failed, trying 'make'"
+            make
+          fi
 
-      # Upload artifacts (.3dsx, .cia, etc.)
-      - name: Upload build outputs
+      - name: Upload build artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: 3ds-build
           path: |
             *.3dsx
             *.cia
+            *.elf
             romfs/*
+
+      # optional: simple success/failure status via logs (replace with your notify actions if you have them)
+      - name: Log result
+        if: success()
+        run: echo "Build succeeded."
+      - name: Log failure
+        if: failure()
+        run: echo "Build failed. See logs above."
