@@ -1,0 +1,105 @@
+name: Build 3DS (.3dsx)
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.ref }}-3dsx
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    container:
+      image: devkitpro/devkitarm:latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Show runner info (debug)
+        run: |
+          uname -a
+          echo "DEVKITPRO = $DEVKITPRO"
+          env | sort
+
+      - name: Convert gfx/*.png -> romfs/*.t3x (if images exist)
+        run: |
+          set -eux
+          mkdir -p romfs
+          if command -v tex3ds >/dev/null 2>&1; then
+            for f in gfx/*.png; do
+              [ -f "$f" ] || continue
+              name=$(basename "$f" .png)
+              echo "Converting $f -> romfs/${name}.t3x"
+              tex3ds -f rgba8888 -o "romfs/${name}.t3x" "$f"
+            done
+          else
+            echo "Warning: tex3ds not found in container. If you rely on conversion, install tex3ds in the image or pre-convert locally."
+          fi
+          ls -la romfs || true
+
+      - name: Build (try common 3DS targets)
+        id: build-step
+        run: |
+          set -eux
+          # try common targets in order (stop on first success)
+          echo "Attempting make 3dsx..."
+          if make 3dsx; then
+            echo "Built with 'make 3dsx'"
+            exit 0
+          fi
+
+          echo "'make 3dsx' failed, attempting 'make 3ds'..."
+          if make 3ds; then
+            echo "Built with 'make 3ds'"
+            exit 0
+          fi
+
+          echo "'make 3ds' failed, attempting 'make' (default target)..."
+          if make; then
+            echo "Built with default 'make'"
+            exit 0
+          fi
+
+          # If the repo uses a secondary Makefile (Makefile.build) like the template
+          if [ -f Makefile.build ]; then
+            echo "Trying make -f Makefile.build all ..."
+            if make -f Makefile.build all; then
+              echo "Built with Makefile.build"
+              exit 0
+            fi
+          fi
+
+          echo "All build attempts failed. Printing make -n (dry run) to help debug:"
+          make -n || true
+          # fail to mark the job failed and provide logs
+          exit 1
+
+      - name: List built files (debug)
+        if: always()
+        run: |
+          echo "Root files:"
+          ls -la
+          echo "Find common outputs:"
+          find . -maxdepth 2 -type f \( -name "*.3dsx" -o -name "*.cia" -o -name "*.elf" \) -print || true
+          echo "romfs contents:"
+          ls -la romfs || true
+
+      - name: Upload built artifacts (.3dsx .cia .elf + romfs)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: 3ds-build
+          path: |
+            *.3dsx
+            *.cia
+            *.elf
+            romfs/*
+
+      - name: Notify summary
+        if: success()
+        run: echo "Build finished: artifacts uploaded (look for .3dsx/.cia/.elf in the artifact)."
